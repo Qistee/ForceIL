@@ -75,7 +75,7 @@ def send_ack_frame(ser):
 class force_recorder:
     def __init__(self):
         self.ser = serial.Serial(
-            port='/dev/ttyUSB1',           
+            port='/dev/ttyUSB2',           
             baudrate=115200,       # 波特率115200
             bytesize=serial.EIGHTBITS,  # 数据位8
             parity=serial.PARITY_NONE,  # 无校验

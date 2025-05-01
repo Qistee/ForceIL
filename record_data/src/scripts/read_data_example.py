@@ -26,17 +26,17 @@ def read_hdf5_dataset(file_path):
             print(f"夹爪位置数据形状: {data_dict['gripper_pos'].shape}")
             
             # 读取力传感器数据 (N, 16)
-            data_dict['force'] = np.array(obs_group['force'])
-            print(f"力传感器数据形状: {data_dict['force'].shape}")
+            #data_dict['force'] = np.array(obs_group['force'])
+            #print(f"力传感器数据形状: {data_dict['force'].shape}")
             
             # 读取图像数据
             image_group = obs_group['images']
             # 罗技相机数据 (N, 3, 384, 384)
-            data_dict['logitech_images'] = np.array(image_group['image_logitech'])
+            data_dict['image_logitech'] = np.array(image_group['image_logitech'])
             # RealSense相机数据 (N, 3, 384, 384)
-            data_dict['realsense_images'] = np.array(image_group['image_realsense'])
-            print(f"罗技图像数据形状: {data_dict['logitech_images'].shape}")
-            print(f"RealSense图像数据形状: {data_dict['realsense_images'].shape}")
+            data_dict['image_realsense'] = np.array(image_group['image_realsense'])
+            print(f"罗技图像数据形状: {data_dict['image_logitech'].shape}")
+            print(f"RealSense图像数据形状: {data_dict['image_realsense'].shape}")
 
             # 如果需要读取动作数据（当前被注释）
             if 'actions' in hdf_file:
@@ -58,7 +58,7 @@ def play_camera_data(dataset, camera_type='logitech', frame_delay=25):
     :param frame_delay: 帧间延迟（毫秒），控制播放速度
     """
     # 获取对应的图像数据
-    key = f'{camera_type}_images'
+    key = f'image_{camera_type}'
     if key not in dataset:
         print(f"错误：数据集中不存在 {key} 数据")
         return
@@ -91,7 +91,7 @@ def play_camera_data(dataset, camera_type='logitech', frame_delay=25):
 
 # 使用示例 ---------------------------------------------------
 if __name__ == '__main__':
-    dataset = read_hdf5_dataset('data/episode_0.hdf5')
+    dataset = read_hdf5_dataset('data/episode_1.hdf5')
     
     joint_pos = dataset['joint_pos']
     gripper_pos = dataset['gripper_pos']

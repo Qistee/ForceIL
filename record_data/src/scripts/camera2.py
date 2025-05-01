@@ -37,3 +37,4 @@ if __name__ == '__main__':
     image_reader = image_reader()
     img_logitech, img_camera2 = image_reader.read_image()
     print(img_logitech.shape, img_camera2.shape)
+    print(img_logitech.shape, img_camera2.shape)

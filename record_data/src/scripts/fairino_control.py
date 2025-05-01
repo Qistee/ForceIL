@@ -4,8 +4,10 @@ import rospy
 from functools import partial
 import time
 import numpy as np
-from std_msgs.msg import Float32MultiArray, String
-
+from std_msgs.msg import Float32MultiArray, String, Bool
+import zmq
+import threading
+import pickle
     
 
 class FairinoControl:
@@ -18,53 +20,88 @@ class FairinoControl:
         ret=self.robot.ActGripper(1,1)
         print(ret)
 
+        self.joint_pos = [110,-90,0,-90,-90,-11.8]
+        self.gripper_pos = 0.0
+
+        self.ctx = zmq.Context()
+        # 观测数据发布端口
+        self.obs_pub = self.ctx.socket(zmq.PUB)
+        self.obs_pub.bind("tcp://*:5556")  
+        # 动作数据发布端口 
+        self.act_pub = self.ctx.socket(zmq.PUB)
+        self.act_pub.bind("tcp://*:5557")  
+
         #self.robot.GetAxleLuaGripperFunc(1,9)
 
-        self.start_pub = rospy.Publisher('/start_record', String, queue_size=10)
-
-    def reset_position(self):
+    def _get_joint_pos(self):
+        while not rospy.is_shutdown():
+            time.sleep(0.1)
+            ret, joint_pos = self.robot.GetActualJointPosDegree(flag=1)
+            self.joint_pos = joint_pos
+            while np.allclose(joint_pos[:3], 0, atol=1e-1):
+                print("Joints are not ready, waiting...")
+                ret, joint_pos = self.robot.GetActualJointPosDegree(flag=1)
+            self.publish_action()
+            self.publish_observation()
+               
+    def start_read_joint_pos(self):
         """
-        复位机械臂
+        开始读取机械臂的关节角度
         """
-        tool = 0 #工具坐标系编号
-        user = 0 #工件坐标系编号
-        reset_joints = [0,0,0,0,0,0]
-        ret = self.robot.MoveJ(reset_joints, tool, user)
-        if not ret==0:
-            rospy.logerr("MoveJ failed, error code: %d"%ret)
-        rospy.loginfo("Reset position finished")
-    
-    def move_gripper(self, position):
-        error = self.robot.MoveGripper(1,position,48,46,30000,0,0,0,0,0)
-        print("MoveGripper error code:", error)
-    
-    def start_record(self):
-        time.sleep(3)
-        self.start_pub.publish("start")
-        joint_pos4 = [-83.24, -96.476, 93.688, -114.079, -62, -100]
-        joint_pos5 = [-43.24, -70.476, 93.688, -114.079, -62, -80]
-        joint_pos6 = [-83.24, -96.416, 43.188, -74.079, -80, -10]
-        tool = 0 #工具坐标系编号
-        user = 0 #工件坐标系编号
-        ret = self.robot.MoveJ(joint_pos4, tool, user, vel=30)   #关节空间运动
-        print("关节空间运动点4:错误码", ret)
-        ret, joint_pos = self.robot.GetActualJointPosDegree(flag=1)   #获取当前关节角度
-        print("当前关节角度1", joint_pos)
-        ret = self.robot.MoveJ(joint_pos5, tool, user)
-        print("关节空间运动点5:错误码", ret)
-        ret, joint_pos = self.robot.GetActualJointPosDegree(flag=1)   #获取当前关节角度
-        print("当前关节角度2", joint_pos)
+        self.joint_pos_thread = threading.Thread(target=self._get_joint_pos)
+        self.joint_pos_thread.start()
 
-        self.robot.MoveJ(joint_pos6, tool, user, offset_flag=1, offset_pos=[10,10,10,0,0,0])
-        print("关节空间运动点6:错误码", ret)
-        ret, joint_pos = self.robot.GetActualJointPosDegree(flag=1)   #获取当前关节角度
-        print("当前关节角度3", joint_pos)
+    def stop_read_joint_pos(self):
+        """
+        停止读取机械臂的关节角度
+        """
+        self.joint_pos_thread.join()
+
+    def get_observation(self):
+        observation = {'joint_pos': self.joint_pos, 'gripper_pos': self.gripper_pos}
+        return observation
+    
+    def get_action(self):
+        action = {'joint_pos': self.joint_pos, 'gripper_pos': self.gripper_pos}
+        return action
+
+    def publish_observation(self):
+        obs = self.get_observation()
+        obs_data = pickle.dumps(obs, protocol=pickle.HIGHEST_PROTOCOL)
+        self.obs_pub.send(obs_data) 
+
+    def publish_action(self):
+        action = self.get_action()
+        act_data = pickle.dumps(action, protocol=pickle.HIGHEST_PROTOCOL)
+        self.act_pub.send(act_data)
+
+    def move_with_record(self,target_pos):
+        self.start_read_joint_pos()
+        rospy.wait_for_message('/start_recording', Bool)
+        self.robot.MoveJ(target_pos, 0, 0, vel=30)
+        rospy.loginfo("Move to target position finished")
+        rospy.wait_for_message('/stop_recording', Bool)
+        self.stop_read_joint_pos()
+
+
+    
+    def move_home(self):
+        """
+        移动到初始位置
+        """
+        self.robot.MoveJ([110,-90,0,-90,-90,-11.8], 0, 0, vel=30)
+        rospy.loginfo("Move home finished")
+
+    def move_init(self):
+        """
+        移动到初始位置
+        """
+        self.robot.MoveJ([153,-82,60,-97,-104,-11.8], 0, 0, vel=30)
+        rospy.loginfo("Move init finished")
 
 if __name__ == '__main__':
     rospy.init_node('fairino_control')
     
     fairino_control = FairinoControl()
-    ret = fairino_control.robot.MoveJ([110,-90,0,-90,-90,-11.8], 0, 0, vel=30)
-    
-    #fairino_control.start_record()
-    #rospy.spin()
+    fairino_control.move_init()
+

@@ -77,7 +77,7 @@ class real_env:
     
     def get_gripper_pos(self):
         """
-        获取夹爪位置,因无对于API,使用dynamixel夹爪位置代替
+        获取夹爪位置,因无对应API,使用dynamixel夹爪位置代替
         """
         joint_pos = DYNAMIXELARM.read_position()
         gripper_pos = joint_pos[-1]
@@ -291,3 +291,4 @@ if __name__ == '__main__':
     parser.add_argument('--frame_skip', type=int, default=1, help='Number of frames to skip')
     args = parser.parse_args()
     main(args)
+    

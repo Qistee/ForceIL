@@ -1,3 +1,4 @@
+#!/home/yangchao/.conda/envs/yolo/bin/python
 import time, pickle, zmq
 from Dynamixel_arm import DynamixelArm
 from multiprocessing import shared_memory
