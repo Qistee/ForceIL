@@ -1,7 +1,7 @@
 #!/home/yangchao/.conda/envs/yolo/bin/python
 from fairino import Robot
 import rospy
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool,Float32MultiArray
 from dynamixel_msgs.msg import JointState
 from functools import partial
 import time
@@ -11,7 +11,7 @@ from tqdm import tqdm
 import h5py
 import argparse
 from force import force_recorder
-from camera2 import image_reader
+from camera import image_reader
 from Dynamixel_arm import DynamixelArm
 import zmq
 import pickle
@@ -20,21 +20,16 @@ class DataGrabber:
     def __init__(self):
         #self.force_recorder = force_recorder()
         self.image_reader = image_reader()
-        self.ctx = zmq.Context()
-        # 观测订阅
-        self.obs_sub = self.ctx.socket(zmq.SUB)
-        self.obs_sub.connect("tcp://localhost:5556")
-        self.obs_sub.setsockopt_string(zmq.SUBSCRIBE, "")
-        self.obs_sub.setsockopt(zmq.CONFLATE, 1)  # 只保留最新消息
-        
-        # 动作订阅
-        self.act_sub = self.ctx.socket(zmq.SUB)
-        self.act_sub.connect("tcp://localhost:5557") 
-        self.act_sub.setsockopt_string(zmq.SUBSCRIBE, "")
-        self.act_sub.setsockopt(zmq.CONFLATE, 1)
 
-        self.start_pub = rospy.Publisher('/start_recording', Bool, queue_size=10)
-        self.stop_pub = rospy.Publisher('/stop_recording', Bool, queue_size=10)
+        self.sub_ros = rospy.Subscriber('/dynamixel_pos', Float32MultiArray, self.joint_state_callback, queue_size=1)
+        self.start_pub = rospy.Publisher('/start_recording', Bool, queue_size=1)
+        self.stop_pub = rospy.Publisher('/stop_recording', Bool, queue_size=1)
+    
+    def joint_state_callback(self, msg):
+        self.joint_pos = msg.data[:6]
+        self.gripper_pos = msg.data[-1]
+        self.gripper_pos = 1 if self.gripper_pos > 30 else 0
+
 
     def get_force(self):
         pass
@@ -42,25 +37,21 @@ class DataGrabber:
         #return force
 
     def get_image(self):
-        image_logitech,image_realsense = self.image_reader.read_image()
-        image_logitech,image_realsense = np.transpose(image_logitech, (2, 0, 1)), np.transpose(image_realsense, (2, 0, 1))
+        image_logitech, image_realsense = self.image_reader.read_image()
+        #print(image_logitech.shape, image_realsense.shape)
+        image_logitech = np.transpose(image_logitech, (2, 0, 1))
+        image_realsense = np.transpose(image_realsense, (2, 0, 1))
         return {'image_logitech': image_logitech, 'image_realsense': image_realsense}
     
     def get_observation(self):
-        msg = self.obs_sub.recv(zmq.NOBLOCK)
-        data = pickle.loads(msg)
-        joint_pos = data['joint_pos']
-        gripper_pos = data['gripper_pos']
+        
+        #print(self.joint_pos, self.gripper_pos)
         #force = self.get_force()
         image = self.get_image()
-        return {'joint_pos': joint_pos, 'gripper_pos': gripper_pos, 'image': image}
+        return {'joint_pos': self.joint_pos, 'gripper_pos': self.gripper_pos, 'image': image}
 
     def get_action(self):
-        msg = self.act_sub.recv(zmq.NOBLOCK)
-        data = pickle.loads(msg)
-        joint_pos = data['joint_pos']
-        gripper_pos = data['gripper_pos']
-        return {'joint_pos': joint_pos, 'gripper_pos': gripper_pos}
+        return {'joint_pos': self.joint_pos, 'gripper_pos': self.gripper_pos}
 
 
 def opening_ceremony():
@@ -179,9 +170,9 @@ if __name__ == '__main__':
     rospy.init_node('record_data_node', anonymous=True)
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_dir', type=str, default='./data', help='Directory to save dataset')
-    parser.add_argument('--max_timesteps', type=int, default=100, help='Maximum number of timesteps to record')
-    parser.add_argument('--episode_idx', type=int, default=1, help='Episode index to record')
-    parser.add_argument('--dt', type=float, default=1/5, help='Duration of each timestep to control FPS')
+    parser.add_argument('--max_timesteps', type=int, default=80, help='Maximum number of timesteps to record')
+    parser.add_argument('--episode_idx', type=int, default=None, help='Episode index to record')
+    parser.add_argument('--dt', type=float, default=1/20, help='Duration of each timestep to control FPS')
     parser.add_argument('--frame_skip', type=int, default=1, help='Number of frames to skip')
     args = parser.parse_args()
     main(args)

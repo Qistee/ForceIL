@@ -23,26 +23,23 @@ class FairinoControl:
         self.joint_pos = [110,-90,0,-90,-90,-11.8]
         self.gripper_pos = 0.0
 
-        self.ctx = zmq.Context()
-        # 观测数据发布端口
-        self.obs_pub = self.ctx.socket(zmq.PUB)
-        self.obs_pub.bind("tcp://*:5556")  
-        # 动作数据发布端口 
-        self.act_pub = self.ctx.socket(zmq.PUB)
-        self.act_pub.bind("tcp://*:5557")  
+        self.pub_ros = rospy.Publisher('/dynamixel_pos', Float32MultiArray, queue_size=10)
 
         #self.robot.GetAxleLuaGripperFunc(1,9)
 
     def _get_joint_pos(self):
         while not rospy.is_shutdown():
-            time.sleep(0.1)
+            time.sleep(0.05)
             ret, joint_pos = self.robot.GetActualJointPosDegree(flag=1)
             self.joint_pos = joint_pos
+            print(self.joint_pos)
             while np.allclose(joint_pos[:3], 0, atol=1e-1):
                 print("Joints are not ready, waiting...")
                 ret, joint_pos = self.robot.GetActualJointPosDegree(flag=1)
-            self.publish_action()
-            self.publish_observation()
+
+            msg = Float32MultiArray(data=self.joint_pos+[self.gripper_pos])
+            self.pub_ros.publish(msg)
+
                
     def start_read_joint_pos(self):
         """
@@ -57,30 +54,15 @@ class FairinoControl:
         """
         self.joint_pos_thread.join()
 
-    def get_observation(self):
-        observation = {'joint_pos': self.joint_pos, 'gripper_pos': self.gripper_pos}
-        return observation
-    
-    def get_action(self):
-        action = {'joint_pos': self.joint_pos, 'gripper_pos': self.gripper_pos}
-        return action
-
-    def publish_observation(self):
-        obs = self.get_observation()
-        obs_data = pickle.dumps(obs, protocol=pickle.HIGHEST_PROTOCOL)
-        self.obs_pub.send(obs_data) 
-
-    def publish_action(self):
-        action = self.get_action()
-        act_data = pickle.dumps(action, protocol=pickle.HIGHEST_PROTOCOL)
-        self.act_pub.send(act_data)
 
     def move_with_record(self,target_pos):
+        self.move_init()
         self.start_read_joint_pos()
         rospy.wait_for_message('/start_recording', Bool)
-        self.robot.MoveJ(target_pos, 0, 0, vel=30)
+        self.robot.MoveJ(target_pos, 0, 0, vel=5)
         rospy.loginfo("Move to target position finished")
         rospy.wait_for_message('/stop_recording', Bool)
+        rospy.loginfo("Recording finished")
         self.stop_read_joint_pos()
 
 
@@ -97,11 +79,13 @@ class FairinoControl:
         移动到初始位置
         """
         self.robot.MoveJ([153,-82,60,-97,-104,-11.8], 0, 0, vel=30)
+        self.robot.MoveGripper(1,0,100,80,2000,1,0,0,0,0)
         rospy.loginfo("Move init finished")
 
 if __name__ == '__main__':
     rospy.init_node('fairino_control')
     
     fairino_control = FairinoControl()
-    fairino_control.move_init()
+    fairino_control.move_home()
+    #fairino_control.move_with_record([131.005859375, -58.359375, 63.896484375, -95.830078125, -96.15234375, -11.8])
 

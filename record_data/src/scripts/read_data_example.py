@@ -91,7 +91,8 @@ def play_camera_data(dataset, camera_type='logitech', frame_delay=25):
 
 # 使用示例 ---------------------------------------------------
 if __name__ == '__main__':
-    dataset = read_hdf5_dataset('data/episode_1.hdf5')
+    index=11
+    dataset = read_hdf5_dataset(f'data/episode_{index}.hdf5')
     
     joint_pos = dataset['joint_pos']
     gripper_pos = dataset['gripper_pos']

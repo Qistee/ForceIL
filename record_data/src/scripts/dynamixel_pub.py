@@ -2,6 +2,8 @@
 import time, pickle, zmq
 from Dynamixel_arm import DynamixelArm
 from multiprocessing import shared_memory
+import rospy
+from std_msgs.msg import Float32MultiArray
 
 
 def Dynamixel2Fairino(joints_positions):
@@ -21,10 +23,14 @@ def Dynamixel2Fairino(joints_positions):
     return fairino_joints
 
 
+rospy.init_node('dynamixel_pub')
 ctx = zmq.Context()
 
 pub = ctx.socket(zmq.PUB)
 pub.bind("tcp://*:5555")
+
+pub_ros = rospy.Publisher('/dynamixel_pos', Float32MultiArray, queue_size=10)
+
 
 DYNAMIXELARM=DynamixelArm()
 while True:
@@ -33,6 +39,9 @@ while True:
     pos = Dynamixel2Fairino(pos)
 
     pub.send(pickle.dumps(pos))      # 广播原始读数
+    data = Float32MultiArray()
+    data.data = pos
+    #pub_ros.publish(data)
     print(pos)
     time.sleep(0.05)  # 20 Hz
 

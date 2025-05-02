@@ -8,7 +8,7 @@ import rospy
 
 class image_reader:
     def __init__(self):
-        self.cap = cv2.VideoCapture(3) 
+        self.cap = cv2.VideoCapture(2) 
         self.bridge = CvBridge()
         self.realsense_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.realsense_callback)
         self.realsense_image = None

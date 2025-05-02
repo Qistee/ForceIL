@@ -70,6 +70,7 @@ class real_env:
         # t5=time.time()
         # print("max time:",t5-t4)
         # t1=time.time()
+        print("fairino_joints:",fairino_joints)
         ret = robot.MoveJ(fairino_joints, 0, 0,vel=80, blendT=0)
         # t2=time.time()
         # print(t2-t1)
@@ -77,17 +78,17 @@ class real_env:
             print("MoveJ error",'error code:',ret)
             print("fairino_joints:",fairino_joints)
             return None
-        t6=time.time()
-        gripper_dis=gripper_joint-self.gripper_joint
-        if(gripper_dis>5):
-            #ret = robot.MoveGripper(1,gripper_joint,100,80,2000,1,0,0,0,0)
-            t7=time.time()
-            print("grasp time:",t7-t6)
-            if not ret==0:
-                print("MoveGripper error",'error code:',ret)
-                print("gripper_joint:",gripper_joint)
-                return None
-            self.gripper_joint=gripper_joint
+        # t6=time.time()
+        # gripper_dis=gripper_joint-self.gripper_joint
+        # if(gripper_dis>5):
+        #     ret = robot.MoveGripper(1,gripper_joint,100,80,2000,1,0,0,0,0)
+        #     t7=time.time()
+        #     print("grasp time:",t7-t6)
+        #     if not ret==0:
+        #         print("MoveGripper error",'error code:',ret)
+        #         print("gripper_joint:",gripper_joint)
+        #         return None
+        # self.gripper_joint=gripper_joint
         self.joint_pos=fairino_joints
 
     def get_joint_pos(self):
@@ -153,16 +154,23 @@ class RealParallelController:
             latest_cmd = self.cmd_buffer.get_latest()
             if latest_cmd:
                 env.step(latest_cmd)
-                env.publish_observation()
-                env.publish_action()   
+                # env.publish_observation()
+                # env.publish_action()   
             time.sleep(0.1)  # 控制频
             t2=time.time() 
             print("step time:",t2-t1)
+
+    def publish_thread(self):
+        while self.running:
+            env.publish_observation()
+            env.publish_action()
+            print("pub_finish")   
 
     def start(self):
         # 启动双线程
         threading.Thread(target=self.receiver_thread, daemon=True).start()
         threading.Thread(target=self.control_thread, daemon=True).start()
+        #threading.Thread(target=self.publish_thread, daemon=True).start()
 
 
 robot = Robot.RPC('192.168.58.2')
