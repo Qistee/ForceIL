@@ -1,0 +1,1 @@
+##input:wrist_image,force[t-n,t],pos[t-n,t] output:action
